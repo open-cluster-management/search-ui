@@ -52,7 +52,7 @@ export function mapProviderFromLabel(provider: string): Provider {
 }
 
 function getClusterSummary(clusters: any, selectedCloud: string, setSelectedCloud: Dispatch<SetStateAction<string>>) {
-    const clusterSummary = clusters.reduce(
+    return clusters.reduce(
         (prev: any, curr: any, index: number) => {
             // Data for Providers section.
             const cloud = curr.metadata?.labels?.cloud || 'other'
@@ -97,8 +97,6 @@ function getClusterSummary(clusters: any, selectedCloud: string, setSelectedClou
             clusterNames: new Set(),
         }
     )
-
-    return clusterSummary
 }
 
 const searchQueries = (selectedClusters: Array<string>): Array<any> => {
@@ -155,7 +153,6 @@ const PageActions = (props: { timestamp: string; reloading: boolean; refetch: ()
         // TODO: Better error handling
         console.error(error)
     }
-    const addons = data?.getResource.items
 
     function getLaunchLink(addons: ClusterManagementAddOn[]) {
         const pathKey = 'console.open-cluster-management.io/launch-link'
@@ -172,11 +169,12 @@ const PageActions = (props: { timestamp: string; reloading: boolean; refetch: ()
             return undefined
         }
     }
+    const clusterAddons = data?.getResource?.items
 
     return (
         <Fragment>
             <AcmActionGroup>
-                <AcmLaunchLink links={getLaunchLink(addons)} />
+                {!error && <AcmLaunchLink links={getLaunchLink(clusterAddons)} />}
                 <AcmButton
                     href="/multicloud/add-connection"
                     variant={ButtonVariant.link}
@@ -263,13 +261,10 @@ export default function OverviewPage() {
 
     // Process data from API.
     useEffect(() => {
-        const { kubernetesTypes, regions, ready, offline, providers, clusterNames } = getClusterSummary(
-            clusters || [],
-            selectedCloud,
-            setSelectedCloud
-        )
-        setSummaryData({ kubernetesTypes, regions, ready, offline, providers })
+        const clusterSummary = getClusterSummary(clusters || [], selectedCloud, setSelectedCloud)
+        setSummaryData(clusterSummary)
 
+        const { clusterNames } = clusterSummary
         if (selectedCloud === '') {
             if (!_.isEqual(selectedClusterNames, [])) {
                 setSelectedClusterNames([])
@@ -350,16 +345,18 @@ export default function OverviewPage() {
                       key: 'Failed',
                       value: searchResult[4]?.count || 0,
                       isDanger: true,
-                      link: `/search?filters={"textsearch":"kind%3Apod%20status%3ACrashLoopBackOff%2CFailed%2CImagePullBackOff%2CRunContainerError%2CTerminated%2CUnknown%2COOMKilled${urlClusterFilter}"}`,
+                      link: `/search?filters={"textsearch":"kind%3Apod%20status%3ACrashLoopBackOff%2CFailed%2CImagePullBackOff%2CRunContainerError%2C
+Terminated%2CUnknown%2COOMKilled${urlClusterFilter}"}`,
                   },
               ]
 
     // TODO: Breaks url if length of selectedClustersFilter is too big.
     // Issue: https://github.com/open-cluster-management/backlog/issues/7087
+    function buildNamesFilter(names: Array<string> = []): string {
+        return names.length > 0 ? `%20name:${names.join(',')}` : ''
+    }
     function buildClusterComplianceLinks(clusterNames: Array<string> = []): string {
-        return `/search?filters={"textsearch":"kind:cluster${
-            clusterNames.length > 0 ? `%20name:${clusterNames.join(',')}` : ''
-        }"}&showrelated=policy`
+        return `/search?filters={"textsearch":"kind:cluster${buildNamesFilter(clusterNames)}"}&showrelated=policy`
     }
     const complianceData =
         loading || searchLoading
