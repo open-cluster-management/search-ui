@@ -13,13 +13,14 @@ import fastifyStatic from 'fastify-static'
 import { readFile } from 'fs'
 import { STATUS_CODES } from 'http'
 import * as https from 'https'
-import * as path from 'path'
-import { join } from 'path'
+import { extname, join } from 'path'
 import { URL } from 'url'
 import { promisify } from 'util'
 import { logError, logger } from './lib/logger'
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-var-requires
 const fastifyHttpProxy = require('fastify-http-proxy') // import isn't working for this lib.
+
+const ACM_ACCESS_TOKEN_COOKIE = 'acm-access-token-cookie'
 
 declare module 'fastify-reply-from' {
     export interface From {
@@ -135,7 +136,7 @@ export async function startServer(): Promise<FastifyInstance> {
         })
 
         fastify.all('/multicloud/header/*', (req, res) => {
-            req.headers.authorization = `Bearer ${req.cookies['acm-access-token-cookie']}`
+            req.headers.authorization = `Bearer ${req.cookies[ACM_ACCESS_TOKEN_COOKIE]}`
             res.from(req.raw.url)
         })
 
@@ -149,7 +150,7 @@ export async function startServer(): Promise<FastifyInstance> {
                     method: 'GET',
                     httpsAgent: new https.Agent({ rejectUnauthorized: false }),
                     headers: {
-                        Authorization: `Bearer ${req.cookies['acm-access-token-cookie']}`,
+                        Authorization: `Bearer ${req.cookies[ACM_ACCESS_TOKEN_COOKIE]}`,
                     },
                     responseType: 'json',
                     validateStatus: () => true,
@@ -183,17 +184,8 @@ export async function startServer(): Promise<FastifyInstance> {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                     const operationName = (request.body as any)?.operationName as string
                     if (operationName) {
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        const query = (request.body as any)?.query as unknown
                         msg = { msg: STATUS_CODES[reply.statusCode] }
                         msg.operation = operationName
-
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                        // const variables = (request.body as any)?.variables as Record<string, unknown>
-                        // if (variables && Object.keys(variables).length !== 0) {
-                        //     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                        //     msg = { ...msg, ...variables }
-                        // }
                     } else {
                         msg = {
                             msg: STATUS_CODES[reply.statusCode],
@@ -201,10 +193,6 @@ export async function startServer(): Promise<FastifyInstance> {
                             method: request.method,
                             url,
                         }
-
-                        // if (request.query && Object.keys(request.query).length !== 0) {
-                        //     msg.query = request.query
-                        // }
                     }
 
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-assignment
@@ -284,7 +272,7 @@ export async function startServer(): Promise<FastifyInstance> {
             const token = await openshift.getAccessTokenFromAuthorizationCodeFlow(request)
             logger.debug({ msg: 'search/login/callback token', token: token.access_token })
             return reply
-                .setCookie('acm-access-token-cookie', `${token.access_token}`, {
+                .setCookie(ACM_ACCESS_TOKEN_COOKIE, `${token.access_token}`, {
                     path: '/',
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
@@ -294,7 +282,7 @@ export async function startServer(): Promise<FastifyInstance> {
         })
 
         fastify.delete('/search/login', async function (request, reply) {
-            const token = request.cookies['acm-access-token-cookie']
+            const token = request.cookies[ACM_ACCESS_TOKEN_COOKIE]
             if (token) {
                 await Axios.delete(
                     `${process.env.API_SERVER_URL}/apis/oauth.openshift.io/v1/oauthaccesstokens/${token}`,
@@ -302,14 +290,14 @@ export async function startServer(): Promise<FastifyInstance> {
                         headers: { Authorization: `Bearer ${token}` },
                     }
                 )
-                return reply.code(200).send()
+                void reply.code(200).send()
             }
         })
     }
 
     fastify.setNotFoundHandler((request, response) => {
-        if (!path.extname(getUrlPath(request.url))) {
-            void serveIndexHtml(request, response)
+        if (!extname(getUrlPath(request.url))) {
+            void response.code(200).sendFile('index.html', join(__dirname, 'public'))
         } else {
             void response.code(404).send()
         }

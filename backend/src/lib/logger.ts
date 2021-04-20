@@ -33,13 +33,15 @@ if (process.env.NODE_ENV === 'production') {
 export const logger: pino.Logger = pino(options, stream)
 
 export function stopLogger(): void {
-    if (timeout != undefined) {
+    if (timeout !== undefined) {
         clearInterval(timeout)
         timeout = undefined
     }
-    if (stream != undefined) {
+    if (stream !== undefined) {
         pino.final(logger, (err, finalLogger, evt) => {
-            if (err) finalLogger.error(err, 'error caused exit')
+            if (err) {
+                finalLogger.error(err, 'error caused exit')
+            }
             finalLogger.flush()
         })(undefined)
         stream = undefined

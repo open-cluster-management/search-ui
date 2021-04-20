@@ -5,13 +5,19 @@ config()
 
 import { logger, stopLogger } from './lib/logger'
 
-if (!process.env.API_SERVER_URL) throw new Error('API_SERVER_URL required')
+if (!process.env.API_SERVER_URL) {
+    throw new Error('API_SERVER_URL required')
+}
 logger.debug({ msg: 'environment', API_SERVER_URL: process.env.API_SERVER_URL })
 
-if (!process.env.OAUTH2_REDIRECT_URL) throw new Error('OAUTH2_REDIRECT_URL required')
+if (!process.env.OAUTH2_REDIRECT_URL) {
+    throw new Error('OAUTH2_REDIRECT_URL required')
+}
 logger.debug({ msg: 'environment', OAUTH2_REDIRECT_URL: process.env.OAUTH2_REDIRECT_URL })
 
-if (!process.env.FRONTEND_URL) throw new Error('FRONTEND_URL required')
+if (!process.env.FRONTEND_URL) {
+    throw new Error('FRONTEND_URL required')
+}
 logger.debug({ msg: 'environment', FRONTEND_URL: process.env.FRONTEND_URL })
 
 import { cpus, totalmem } from 'os'
